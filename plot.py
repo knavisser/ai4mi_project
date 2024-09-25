@@ -44,16 +44,22 @@ def run(args: argparse.Namespace) -> None:
 
     epcs = np.arange(E)
 
+    # Define the new labels and same colors as 3D plot for the lines
+    labels = ["Aorta", "Heart", "Esophagus", "Trachea"]
+    colors = ["blue", "yellow", "green", "red"]
+
     for k in range(1, K):
         y = metrics[:, :, k].mean(axis=1)
-        ax.plot(epcs, y, label=f"{k=}", linewidth=1.5)
+        # Use the corresponding label and color for each line
+        ax.plot(epcs, y, label=labels[k-1], color=colors[k-1], linewidth=1.5)
 
     if K > 2:
-        ax.plot(epcs, metrics.mean(axis=1).mean(axis=1), label="All classes", linewidth=3)
+        ax.plot(epcs, metrics.mean(axis=1).mean(axis=1), label="All classes", color="purple", linewidth=3)
         ax.legend()
     else:
         ax.plot(epcs, metrics.mean(axis=1), linewidth=3)
 
+    ax.legend()  # Ensure the legend is added to the plot
     fig.tight_layout()
     if args.dest:
         fig.savefig(args.dest)
