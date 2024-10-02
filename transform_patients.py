@@ -1,97 +1,104 @@
-import os
+
 import nibabel as nib
 import numpy as np
+from scipy.ndimage import affine_transform, shift
+from pathlib import Path
+import shutil
 
-class NiftiProcessor:
-    def __init__(self, reference_file, current_file):
-        self.ref_data = self.load_nifti_data(reference_file)
-        self.curr_data = self.load_nifti_data(current_file)
-        self.offset_vector = self.calculate_offset(self.ref_data, self.curr_data)
+# Load a NIfTI file and convert to a NumPy array.
+def load_nifti_data(file_path):
+    nifti = nib.load(str(file_path))
+    return np.asarray(nifti.dataobj), nifti.affine
+
+# Save a modified array as a NIfTI file.
+def save_nifti_image(file_path, data, affine, header):
+    nifti = nib.Nifti1Image(data, affine, header=header)
+    nib.save(nifti, str(file_path))
+
+# Calculate a correction matrix for affine transformation.
+def calculate_correction_matrix():
+    rotation_corr = np.eye(4)
+    translation_corr = np.eye(4)
+    translation_corr[:3, 3] = [0, 0, 10]  # Ten z-units
+    correction_matrix = np.dot(translation_corr, rotation_corr)
+    return correction_matrix
+
+# Compute the shift vector for the heart region.
+def compute_heart_shift(original_gt, corrected_gt):
+    heart_original = (original_gt == 2).astype(np.float32)
+    heart_corrected = (corrected_gt == 2).astype(np.float32)
+    centroid_original = np.mean(np.argwhere(heart_original), axis=0)
+    centroid_corrected = np.mean(np.argwhere(heart_corrected), axis=0)
+    return centroid_corrected - centroid_original
+
+# Apply affine transformation to the image data.
+def apply_correction(image_data, correction_matrix):
+    M = correction_matrix[:3, :3]
+    t = correction_matrix[:3, 3]
+    M_inv = np.linalg.inv(M)
+    offset = -np.dot(M_inv, t)
+    corrected_data = affine_transform(image_data, M_inv, offset=offset, order=1, mode='constant', cval=0.0)
+    return corrected_data
+
+# Shift the heart segment in the ground truth data.
+def shift_heart_segment(gt_data, shift_vector):
+    heart_segment = (gt_data == 2).astype(np.float32)
+    shifted_heart = shift(heart_segment, shift=shift_vector, order=0, mode='constant', cval=0.0)
+    gt_data_corrected = np.where(gt_data == 2, 0, gt_data)  # Remove the original heart segment
+    gt_data_corrected = np.where(shifted_heart > 0, 2, gt_data_corrected)  # Add shifted heart segment
+    return gt_data_corrected
+
+#Process a single patient, applying affine corrections and heart shift.
+def process_patient(patient_folder, correction_matrix, heart_shift_vector, output_folder):
+    patient_output_folder = output_folder/patient_folder.name
+    patient_output_folder.mkdir(parents=True, exist_ok=True)
+
+    # Apply affine correction to CT image
+    ct_path = patient_folder/f"{patient_folder.name}.nii.gz"
+    ct_data, ct_affine = load_nifti_data(ct_path)
+    corrected_ct = apply_correction(ct_data, correction_matrix)
+    save_nifti_image(patient_output_folder/f"{patient_folder.name}.nii.gz", corrected_ct, ct_affine, nib.load(ct_path).header)
+
+    # Apply affine correction to GT image and shift the heart segment
+    gt_path = patient_folder/"GT.nii.gz"
+    gt_data, gt_affine = load_nifti_data(gt_path)
+    corrected_gt = apply_correction(gt_data, correction_matrix)
+    corrected_gt = shift_heart_segment(corrected_gt, heart_shift_vector)
+    save_nifti_image(patient_output_folder/"GT2.nii.gz", corrected_gt, gt_affine, nib.load(gt_path).header)
+
+# Process all patients, excluding Patient_27.
+def process_all_patients(data_root, output_root, correction_matrix, heart_shift_vector):
     
-    @staticmethod
-    def load_nifti_data(file_path):
-        """Load a NIfTI file and convert to a NumPy array."""
-        return np.asarray(nib.load(file_path).dataobj)
+    patient_27_folder = data_root/"Patient_27"
+    
+    # Sort patient folders by name
+    patient_folders = sorted(data_root.glob("Patient_*"), key=lambda x: int(x.name.split('_')[1]))
 
-    @staticmethod
-    def extract_coordinates(binary_mask):
-        """Get the coordinates of non-zero values in the mask."""
-        return np.argwhere(binary_mask)
+    for patient in patient_folders:
+        if patient.name != "Patient_27":
+            print(f"Processing {patient.name}")
+            process_patient(patient, correction_matrix, heart_shift_vector, output_root)
+        else:
+            patient_27_output = output_root/"Patient_27"
+            patient_27_output.mkdir(parents=True, exist_ok=True)
+            for file in patient_27_folder.glob("*"):
+                if file.name.endswith(".nii.gz"):
+                    shutil.copy(str(file), str(patient_27_output / file.name))
+    print("Done.")
 
-    @staticmethod
-    def calculate_centroid(points_array):
-        """Find centroid of 3D coordinates."""
-        return np.mean(points_array, axis=0)
+def main():
+    data_root = Path("data/segthor_train/train")
+    output_root = Path("data/segthor_train_fixed")    
+    output_root.mkdir(parents=True, exist_ok=True)
+    
+    # Process Patient 27 first
+    original_gt, _ = load_nifti_data("data/segthor_train/train/Patient_27/GT.nii.gz")
+    corrected_gt, _ = load_nifti_data("data/segthor_train/train/Patient_27/GT2.nii.gz")
+    
+    correction_matrix = calculate_correction_matrix()
+    heart_shift_vector = compute_heart_shift(original_gt, corrected_gt)
 
-    @staticmethod
-    def shift_coordinates(points_array, offset):
-        """Apply shift to 3D coordinates."""
-        return points_array + offset
+    process_all_patients(data_root, output_root, correction_matrix, heart_shift_vector)
 
-    @staticmethod
-    def generate_mask_from_points(points, target_shape):
-        """Convert the shifted points back to a binary mask."""
-        mask = np.zeros(target_shape, dtype=np.uint8)
-        for coord in points.astype(int):
-            mask[tuple(coord)] = 1
-        return mask
-
-    @staticmethod
-    def save_nifti_image(mask_array, filepath, reference_img):
-        """Save a modified array as a NIfTI file."""
-        if os.path.exists(filepath):
-            print(f"File {filepath} exists, replacing it with the new mask.")
-        new_img = nib.Nifti1Image(mask_array, affine=reference_img.affine, header=reference_img.header)
-        nib.save(new_img, filepath)
-
-    def calculate_offset(self, ref_data, curr_data):
-        """Calculate the shift required to align the centroids of the regions of interest."""
-        ref_region = (ref_data == 2)
-        curr_region = (curr_data == 2)
-
-        ref_points = self.extract_coordinates(ref_region)
-        curr_points = self.extract_coordinates(curr_region)
-
-        ref_centroid = self.calculate_centroid(ref_points)
-        curr_centroid = self.calculate_centroid(curr_points)
-
-        return ref_centroid - curr_centroid
-
-    def process_patient(self, patient_id_str, output_dir):
-        """Process a single patient and save the aligned mask."""
-        patient_path = os.path.join(output_dir, f"Patient_{patient_id_str}/GT.nii.gz")
-        gt_patient = nib.load(patient_path)
-        patient_data = np.asarray(gt_patient.dataobj)
-
-        # Create binary mask and shift coordinates
-        target_region_mask = (patient_data == 2)
-        target_points = self.extract_coordinates(target_region_mask)
-        shifted_points = self.shift_coordinates(target_points, self.offset_vector)
-        aligned_target_mask = self.generate_mask_from_points(shifted_points, target_region_mask.shape)
-
-        # Create modified patient data
-        modified_patient_data = np.copy(patient_data)
-        modified_patient_data[modified_patient_data == 2] = 0  # Remove original region
-        modified_patient_data[aligned_target_mask == 1] = 2     # Insert aligned region
-
-        # Save updated mask
-        self.save_nifti_image(modified_patient_data, patient_path, gt_patient)
-
-    def process_all_patients(self, num_patients, output_dir):
-        """Process all patients in the dataset."""
-        for patient_id in range(1, num_patients + 1):
-            patient_id_str = f"{patient_id:02d}"
-            print(f"Processing patient {patient_id_str}")
-            self.process_patient(patient_id_str, output_dir)
-        print("All patients processed successfully.")
-
-
-# Main logic to execute the processing for all patients
 if __name__ == "__main__":
-    reference_file = "data/segthor_train/train/Patient_27/GT2.nii.gz"
-    current_file = "data/segthor_train/train/Patient_27/GT.nii.gz"
-    output_dir = "data/segthor_train/train"
-    num_patients = 40
-
-    processor = NiftiProcessor(reference_file, current_file)
-    processor.process_all_patients(num_patients, output_dir)
+    main()
