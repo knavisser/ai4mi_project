@@ -88,7 +88,7 @@ def process_all_patients(data_root, output_root, correction_matrix, heart_shift_
 
 def main():
     data_root = Path("data/segthor_train/train")
-    output_root = Path("data/segthor_train_fixed")    
+    output_root = Path("data/segthor_train_fixed/train")    
     output_root.mkdir(parents=True, exist_ok=True)
     
     # Process Patient 27 first
