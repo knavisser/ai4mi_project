@@ -23,7 +23,8 @@ data/segthor_train: data/segthor_train.zip
 	unzip -q $<
 	rm -f $@/.DS_STORE
 
-data/SEGTHOR: data/segthor_train
+#data/SEGTHOR: data/segthor_train
+data/SEGTHOR: data/segthor_train_fixed
 	$(info $(green)python $(CFLAGS) slice_segthor.py$(reset))
 	rm -rf $@_tmp $@
 	python $(CFLAGS) slice_segthor.py --source_dir $^ --dest_dir $@_tmp \
