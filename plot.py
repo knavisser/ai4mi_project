@@ -45,8 +45,8 @@ def run(args: argparse.Namespace) -> None:
     epcs = np.arange(E)
 
     # Define the new labels and same colors as 3D plot for the lines
-    labels = ["Aorta", "Heart", "Esophagus", "Trachea"]
-    colors = ["blue", "yellow", "green", "red"]
+    labels = ["Esophagus", "Heart", "Trachea", "Aorta"]
+    colors = ["green", "yellow", "red", "blue"]
 
     for k in range(1, K):
         y = metrics[:, :, k].mean(axis=1)
