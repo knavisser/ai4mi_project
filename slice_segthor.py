@@ -95,6 +95,9 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
 
     gt: np.ndarray
     if not test_mode:
+        #No transformation
+        #gt_path: Path = id_path / "GT.nii.gz"
+        #With transformation
         gt_path: Path = id_path / "GT2.nii.gz"
         gt_nib = nib.load(str(gt_path))
         # print(nib_obj.affine, gt_nib.affine)

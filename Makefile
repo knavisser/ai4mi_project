@@ -17,13 +17,15 @@ data/TOY2:
 
 
 # Extraction and slicing for Segthor
-data/segthor_train: data/segthor_train.zip
-	$(info $(yellow)unzip $<$(reset))
-	sha256sum -c data/segthor_train.sha256
-	unzip -q $<
-	rm -f $@/.DS_STORE
+# data/segthor_train: data/segthor_train.zip
+# 	$(info $(yellow)unzip $<$(reset))
+# 	sha256sum -c data/segthor_train.sha256
+# 	unzip -q $<
+# 	rm -f $@/.DS_STORE
 
+#No transformation
 #data/SEGTHOR: data/segthor_train
+#With transformation
 data/SEGTHOR: data/segthor_train_fixed
 	$(info $(green)python $(CFLAGS) slice_segthor.py$(reset))
 	rm -rf $@_tmp $@
