@@ -36,14 +36,9 @@ def plot_metrics(metric_file: Path, dest: Path, headless: bool = False) -> None:
         mean_metrics = metrics  # No need to compute mean, already 1D
         K = 1
     elif metrics.ndim == 2:
-        #Training and validation plots
-        # E, N = metrics.shape  # E is epochs, N is the number of samples
-        # K = 1  # No multiple classes
-        # mean_metrics = metrics.mean(axis=1)  # Mean across all samples for each epoch
-
-        #Testing plots
-        E, K = metrics.shape  # E is samples or epochs, K is the number of classes
-        mean_metrics = metrics  # No averaging needed
+        E, N = metrics.shape  # E is epochs, N is the number of samples
+        K = 1  # No multiple classes
+        mean_metrics = metrics.mean(axis=1)  # Mean across all samples for each epoch
 
     elif metrics.ndim == 3:
         E, N, K = metrics.shape  # E is epochs, N is number of samples, K is number of classes
