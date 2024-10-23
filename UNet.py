@@ -1,3 +1,6 @@
+#Original GitHub: https://github.com/milesial/Pytorch-UNet
+#Original paper by Olaf Ronneberger, Philipp Fischer, Thomas Brox: U-Net: Convolutional Networks for Biomedical Image Segmentation
+
 """ Parts of the U-Net model """
 
 import torch
