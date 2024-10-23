@@ -50,13 +50,17 @@ from utils import (Dcm,
 
 from losses import (CrossEntropy)
 
+from UNet import UNet
+from torch.utils.data import Subset
+import random
+
 
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
 # Avoids the clases with C (often used for the number of Channel)
 datasets_params["TOY2"] = {'K': 2, 'net': shallowCNN, 'B': 2}
 datasets_params["SEGTHOR"] = {'K': 5, 'net': ENet, 'B': 8}
-
+#datasets_params["SEGTHOR"] = {'K': 5, 'net': UNet, 'B': 8}
 
 def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     # Networks and scheduler
@@ -66,6 +70,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
 
     K: int = datasets_params[args.dataset]['K']
     net = datasets_params[args.dataset]['net'](1, K)
+    #net = UNet(n_channels=1, n_classes=K)
     net.init_weights()
     net.to(device)
 
@@ -226,6 +231,88 @@ def runTraining(args):
             torch.save(net, args.dest / "bestmodel.pkl")
             torch.save(net.state_dict(), args.dest / "bestweights.pt")
 
+def runTesting(args):
+    print(f">>> Setting up to test on {args.dataset}")
+    
+    #Couldn't use Snellius GPU's anymore:
+    device = torch.device("cuda" if args.gpu and torch.cuda.is_available() else "cpu")
+    
+    # (CPU or GPU)
+    net = torch.load(args.dest / "bestmodel.pkl", map_location=device)
+    net.eval()
+    net.to(device)
+    K: int = datasets_params[args.dataset]['K']
+
+    img_transform = transforms.Compose([
+        lambda img: img.convert('L'),
+        lambda img: np.array(img)[np.newaxis, ...],
+        lambda nd: nd / 255,  # max <= 1
+        lambda nd: torch.tensor(nd, dtype=torch.float32)
+    ])
+
+    gt_transform = transforms.Compose([
+        lambda img: np.array(img)[...],
+        lambda nd: nd / (255 / (K - 1)) if K != 5 else nd / 63,  # max <= 1
+        lambda nd: torch.tensor(nd, dtype=torch.int64)[None, ...],  # Add one dimension to simulate batch
+        lambda t: class2one_hot(t, K=K),
+        itemgetter(0)
+    ])
+
+# Test dataset loader
+    root_dir = Path("data") / args.dataset
+    test_set = SliceDataset('test',
+                            root_dir,
+                            img_transform=img_transform,
+                            gt_transform=gt_transform,  # No ground truth for test data
+                            debug=args.debug)
+
+    #Had to run testing in batches when Snellius was down.
+#    # Split the dataset into three parts
+#     dataset_size = len(test_set)
+#     part_size = dataset_size // 3  # Size for each part
+
+#     # Create subsets for the three parts of the dataset
+#     indices = list(range(dataset_size))
+
+#     # First part (from start to part_size)
+#     first_part_indices = indices[:part_size]
+
+#     # Second part (from part_size to 2 * part_size)
+#     second_part_indices = indices[part_size:2 * part_size]
+
+#     # Third part (from 2 * part_size to end) - will include the remainder if not perfectly divisible by 3
+#     third_part_indices = indices[2 * part_size:]
+
+#     # Create subsets for the three parts
+#     first_part_set = Subset(test_set, first_part_indices)
+#     second_part_set = Subset(test_set, second_part_indices)
+#     third_part_set = Subset(test_set, third_part_indices)
+
+    test_loader = DataLoader(test_set,
+                             batch_size=datasets_params[args.dataset]['B'],
+                             num_workers=args.num_workers,
+                             shuffle=False)
+
+    # Running inference on the test set
+    with torch.no_grad():
+        tq_iter = tqdm_(enumerate(test_loader), total=len(test_loader), desc=">> Testing")
+        for i, data in tq_iter:
+            img = data['images'].to(device)
+            
+            # Forward pass through the network
+            pred_logits = net(img)
+            pred_probs = F.softmax(1 * pred_logits, dim=1)
+
+            # Convert to predicted segmentation classes
+            predicted_class = probs2class(pred_probs)
+            
+            # Save predictions
+            mult = 63 if datasets_params[args.dataset]['K'] == 5 else (255 / (datasets_params[args.dataset]['K'] - 1))
+            save_images(predicted_class * mult,
+                        data['stems'],  # Use the same image stems from the dataset
+                        args.dest / "test_results")
+
+        print("Testing complete, predictions saved in 'test_results' directory.")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -241,12 +328,16 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logic around epochs and logging easily.")
+    parser.add_argument('--test', action='store_true', help="Run in test mode.")
 
     args = parser.parse_args()
 
     pprint(args)
 
-    runTraining(args)
+    if args.test:
+        runTesting(args)
+    else:
+        runTraining(args)
 
 
 if __name__ == '__main__':
