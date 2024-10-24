@@ -3,20 +3,14 @@ import os
 import matplotlib.pyplot as plt
 
 # Folder containing the .npy files
-folder_path = 'results/segthor/ce'  # Replace with your folder path
+folder_path = 'results/segthor/unet'  # Replace with your folder path
 
 # Folder to save the plots
-output_folder = 'results/visualization'  # Replace with the path to where you want to save the plots
+output_folder = 'results/visualization/unet'  # Replace with the path to where you want to save the plots
 os.makedirs(output_folder, exist_ok=True)  # Create the folder if it doesn't exist
 
 # Define the .npy files we are going to visualize
 metrics_files = {
-    "iou_test": "iou_test.npy",
-    "iou_val": "iou_val.npy",
-    "dice_test": "dice_test.npy",
-    "dice_val": "dice_val.npy",
-    "hausdorff_test": "hausdorff_test.npy",
-    "hausdorff_val": "hausdorff_val.npy",
     "loss_tra": "loss_tra.npy",
     "loss_val": "loss_val.npy",
 }
