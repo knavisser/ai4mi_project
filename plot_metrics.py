@@ -7,6 +7,7 @@ import matplotlib.lines as mlines
 
 # Define the output directory and the numpy files
 metrics_dir = 'metrics_output/enet/'
+#metrics_dir = 'metrics_output/unet/'
 hausdorff_file = os.path.join(metrics_dir, 'hausdorff_per_class.npy')
 iou_file = os.path.join(metrics_dir, 'iou_per_class.npy')
 dice_file = os.path.join(metrics_dir, 'dice_per_class.npy')

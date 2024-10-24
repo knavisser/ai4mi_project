@@ -8,6 +8,8 @@ from utils import intersection, union
 
 # Directory to save computed metrics
 output_dir = 'metrics_output/enet/'
+#output_dir = 'metrics_output/unet/'
+
 os.makedirs(output_dir, exist_ok=True)
 
 # Directories for actual (ground truth) and predicted segmentations

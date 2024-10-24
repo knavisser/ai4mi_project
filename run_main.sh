@@ -12,7 +12,8 @@ cd /home/scur2445/ai4mi_project
 
 source ai4mi/bin/activate
 
-#python main.py --dataset SEGTHOR --mode full --epoch 25 --num_workers 8 --dest results/segthor/enet --gpu
-python main.py --dataset SEGTHOR --mode full --test --num_workers 8 --dest results/segthor/enet --gpu
+python main.py --dataset SEGTHOR --mode full --epoch 25 --num_workers 8 --dest results/segthor/enet --gpu
+#python main.py --dataset SEGTHOR --mode full --test --num_workers 8 --dest results/segthor/enet --gpu
 
 #python main.py --dataset SEGTHOR --mode full --epoch 25 --num_workers 8 --dest results/segthor/unet --gpu
+#python main.py --dataset SEGTHOR --mode full --test --num_workers 8 --dest results/segthor/unet --gpu
